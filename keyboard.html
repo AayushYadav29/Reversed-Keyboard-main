@@ -9,11 +9,8 @@
 </head>
 
 <body class="keyboard-page">
-  <!-- Snowfall -->
-  <div class="snowfall" id="snowfall"></div>
-  
-  <!-- Blur Overlay -->
-  <div class="blur-overlay"></div>
+  <!-- Particle Background -->
+  <canvas id="particleCanvas"></canvas>
   
   <!-- Header -->
   <header class="header">
@@ -109,6 +106,65 @@
     }
 
     initializeKeyboardMap();
+
+    // ═══ COSMIC BACKGROUND (keyboard page) ═══
+    (function() {
+      const canvas = document.getElementById('particleCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let W, H, time = 0;
+      let mouse = { x: -9999, y: -9999, active: false };
+      let stars = [], shootingStars = [], orbs = [], ripples = [];
+      const palette = [[96,165,250],[139,92,246],[236,72,153],[52,211,153],[251,191,36],[99,102,241]];
+
+      function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        stars = []; orbs = [];
+        for (let i = 0; i < 260; i++) stars.push({ x: Math.random()*W, y: Math.random()*H, r: Math.random()*1.8+0.2, ts: Math.random()*0.03+0.01, to: Math.random()*Math.PI*2, c: palette[Math.floor(Math.random()*3)] });
+        for (let i = 0; i < 8; i++) { const c = palette[Math.floor(Math.random()*palette.length)]; orbs.push({ x: Math.random()*W, y: Math.random()*H, br: Math.random()*30+15, vx: (Math.random()-0.5)*0.5, vy: (Math.random()-0.5)*0.5, c, ph: Math.random()*Math.PI*2, ps: Math.random()*0.02+0.01 }); }
+      }
+
+      function animate() {
+        time++;
+        ctx.clearRect(0, 0, W, H);
+        // BG
+        const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)*0.8);
+        bg.addColorStop(0, '#0a0a2e'); bg.addColorStop(0.5, '#050520'); bg.addColorStop(1, '#020014');
+        ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+        // Nebula
+        const nebSpots = [{ x: W*0.2, y: H*0.3, r: 300, c: palette[1]}, { x: W*0.8, y: H*0.7, r: 350, c: palette[0]}, { x: W*0.5, y: H*0.5, r: 400, c: palette[5]}];
+        for (let s of nebSpots) { const d = Math.sin(time*0.003+s.x*0.01)*30; const g = ctx.createRadialGradient(s.x+d,s.y,0,s.x+d,s.y,s.r); g.addColorStop(0,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.03)`); g.addColorStop(0.5,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},0.01)`); g.addColorStop(1,'transparent'); ctx.beginPath(); ctx.arc(s.x+d,s.y,s.r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill(); }
+
+        // Aurora
+        for (let b = 0; b < 4; b++) { const by = H*(0.15+b*0.12); const c = palette[b%palette.length]; ctx.beginPath(); ctx.moveTo(0,by); for (let x=0;x<=W;x+=4) { ctx.lineTo(x, by+Math.sin(x*0.003+time*0.008+b*1.5)*50+Math.sin(x*0.007+time*0.012+b*0.8)*30+Math.sin(x*0.001+time*0.005)*70); } ctx.lineTo(W,H); ctx.lineTo(0,H); ctx.closePath(); const ag = ctx.createLinearGradient(0,by-80,0,by+200); ag.addColorStop(0,'transparent'); ag.addColorStop(0.2,`rgba(${c[0]},${c[1]},${c[2]},${0.04+Math.sin(time*0.01+b)*0.02})`); ag.addColorStop(0.5,`rgba(${c[0]},${c[1]},${c[2]},0.02)`); ag.addColorStop(1,'transparent'); ctx.fillStyle=ag; ctx.fill(); }
+
+        // Stars
+        for (let s of stars) { const f = 0.4+0.6*Math.sin(time*s.ts+s.to); const a = f*(0.5+s.r/2); ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fillStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},${a})`; ctx.fill(); if (s.r>1) { const g = ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.r*4); g.addColorStop(0,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},${a*0.4})`); g.addColorStop(1,'transparent'); ctx.beginPath(); ctx.arc(s.x,s.y,s.r*4,0,Math.PI*2); ctx.fillStyle=g; ctx.fill(); } }
+
+        // Orbs
+        for (let o of orbs) { o.x+=o.vx; o.y+=o.vy; if(o.x<-50)o.x=W+50; if(o.x>W+50)o.x=-50; if(o.y<-50)o.y=H+50; if(o.y>H+50)o.y=-50; if(mouse.active){const dx=mouse.x-o.x,dy=mouse.y-o.y,ds=Math.sqrt(dx*dx+dy*dy); if(ds<300&&ds>0){const p=0.3/ds; o.vx+=dx*p; o.vy+=dy*p;}} o.vx*=0.99; o.vy*=0.99; const r=o.br+Math.sin(time*o.ps+o.ph)*8; const g1=ctx.createRadialGradient(o.x,o.y,0,o.x,o.y,r*3); g1.addColorStop(0,`rgba(${o.c[0]},${o.c[1]},${o.c[2]},0.15)`); g1.addColorStop(0.4,`rgba(${o.c[0]},${o.c[1]},${o.c[2]},0.05)`); g1.addColorStop(1,'transparent'); ctx.beginPath(); ctx.arc(o.x,o.y,r*3,0,Math.PI*2); ctx.fillStyle=g1; ctx.fill(); const g2=ctx.createRadialGradient(o.x,o.y,0,o.x,o.y,r); g2.addColorStop(0,'rgba(255,255,255,0.2)'); g2.addColorStop(0.3,`rgba(${o.c[0]},${o.c[1]},${o.c[2]},0.12)`); g2.addColorStop(1,'transparent'); ctx.beginPath(); ctx.arc(o.x,o.y,r,0,Math.PI*2); ctx.fillStyle=g2; ctx.fill(); }
+
+        // Shooting stars
+        for (let i=shootingStars.length-1;i>=0;i--) { const s=shootingStars[i]; s.x+=Math.cos(s.a)*s.sp; s.y+=Math.sin(s.a)*s.sp; s.life-=s.d; if(s.life<=0){shootingStars.splice(i,1);continue;} const tx=s.x-Math.cos(s.a)*s.l,ty=s.y-Math.sin(s.a)*s.l; const g=ctx.createLinearGradient(tx,ty,s.x,s.y); g.addColorStop(0,'transparent'); g.addColorStop(0.6,`rgba(${s.c[0]},${s.c[1]},${s.c[2]},${s.life*0.5})`); g.addColorStop(1,`rgba(255,255,255,${s.life})`); ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(s.x,s.y); ctx.strokeStyle=g; ctx.lineWidth=s.w; ctx.lineCap='round'; ctx.stroke(); const hg=ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,8); hg.addColorStop(0,`rgba(255,255,255,${s.life})`); hg.addColorStop(1,'transparent'); ctx.beginPath(); ctx.arc(s.x,s.y,8,0,Math.PI*2); ctx.fillStyle=hg; ctx.fill(); }
+
+        // Vortex
+        if (mouse.active) { for(let rn=0;rn<3;rn++){const rd=40+rn*30,al=0.08-rn*0.02,c=palette[rn],rot=time*0.02*(rn%2===0?1:-1); ctx.beginPath(); ctx.arc(mouse.x,mouse.y,rd,rot,rot+Math.PI*1.4); ctx.strokeStyle=`rgba(${c[0]},${c[1]},${c[2]},${al})`; ctx.lineWidth=2; ctx.stroke();} const vg=ctx.createRadialGradient(mouse.x,mouse.y,0,mouse.x,mouse.y,120); vg.addColorStop(0,'rgba(139,92,246,0.08)'); vg.addColorStop(0.5,'rgba(96,165,250,0.03)'); vg.addColorStop(1,'transparent'); ctx.beginPath(); ctx.arc(mouse.x,mouse.y,120,0,Math.PI*2); ctx.fillStyle=vg; ctx.fill(); }
+
+        // Ripples
+        for(let i=ripples.length-1;i>=0;i--){const rp=ripples[i]; rp.r+=rp.sp; rp.life-=rp.d; if(rp.life<=0||rp.r>rp.mr){ripples.splice(i,1);continue;} ctx.beginPath(); ctx.arc(rp.x,rp.y,rp.r,0,Math.PI*2); ctx.strokeStyle=`rgba(${rp.c[0]},${rp.c[1]},${rp.c[2]},${rp.life*0.5})`; ctx.lineWidth=rp.w; ctx.stroke();}
+
+        if (Math.random()<0.008) { const c=palette[Math.floor(Math.random()*palette.length)]; shootingStars.push({x:Math.random()*W*0.8,y:Math.random()*H*0.3,l:Math.random()*120+80,sp:Math.random()*8+6,a:Math.PI/4+(Math.random()-0.5)*0.3,life:1,d:Math.random()*0.012+0.008,c,w:Math.random()*2+1}); }
+        requestAnimationFrame(animate);
+      }
+
+      window.addEventListener('resize', resize);
+      canvas.addEventListener('mousemove', (e) => { mouse.x=e.clientX; mouse.y=e.clientY; mouse.active=true; });
+      canvas.addEventListener('mouseleave', () => { mouse.active=false; });
+      canvas.addEventListener('click', (e) => { const c=palette[Math.floor(Math.random()*palette.length)]; for(let i=0;i<3;i++) ripples.push({x:e.clientX,y:e.clientY,r:5+i*15,mr:150+i*60,sp:3+i*1.5,life:1,d:0.015-i*0.003,c,w:2-i*0.5}); for(let i=0;i<2;i++){const cc=palette[Math.floor(Math.random()*palette.length)]; shootingStars.push({x:Math.random()*W*0.8,y:Math.random()*H*0.3,l:Math.random()*120+80,sp:Math.random()*8+6,a:Math.PI/4+(Math.random()-0.5)*0.3,life:1,d:Math.random()*0.012+0.008,c:cc,w:Math.random()*2+1});} });
+      resize(); animate();
+    })();
     
     // Show Level 2 Locked Modal
     function showLevel2LockedModal(level1Result) {

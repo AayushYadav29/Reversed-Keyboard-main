@@ -103,24 +103,362 @@ const analytics = {
 let currentLineIndex = 0;
 const VISIBLE_LINES = 3;
 
-// Generate snowfall effect
-function createSnowfall() {
-    const snowfallContainer = document.getElementById('snowfall');
-    if (!snowfallContainer) return;
-    
-    const snowflakeCount = 50;
-    
-    for (let i = 0; i < snowflakeCount; i++) {
-        const snowflake = document.createElement('div');
-        snowflake.className = 'snowflake';
-        snowflake.style.left = Math.random() * 100 + '%';
-        snowflake.style.top = Math.random() * 100 + '%';
-        snowflake.style.opacity = Math.random() * 0.7 + 0.3;
-        const size = Math.random() * 6 + 2;
-        snowflake.style.width = snowflake.style.height = size + 'px';
-        snowflake.style.filter = 'blur(' + (Math.random() * 2 + 1) + 'px)';
-        snowfallContainer.appendChild(snowflake);
+// ═══════════════════════════════════════════════════════════
+// COSMIC BACKGROUND — stars, aurora, meteors, orbs, vortex
+// ═══════════════════════════════════════════════════════════
+function initParticleBackground() {
+    const canvas = document.getElementById('particleCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    let W, H;
+    let mouse = { x: -9999, y: -9999, active: false };
+    let time = 0;
+
+    // ── Layers ──
+    let stars = [], shootingStars = [], orbs = [], ripples = [];
+
+    const STAR_COUNT = 260;
+    const ORB_COUNT = 8;
+    const AURORA_BANDS = 4;
+
+    // ── Colors ──
+    const palette = [
+        [96, 165, 250],   // blue
+        [139, 92, 246],   // purple
+        [236, 72, 153],   // pink
+        [52, 211, 153],   // emerald
+        [251, 191, 36],   // amber
+        [99, 102, 241],   // indigo
+    ];
+
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        initStars();
+        initOrbs();
     }
+
+    // ── STARS ──
+    function initStars() {
+        stars = [];
+        for (let i = 0; i < STAR_COUNT; i++) {
+            stars.push({
+                x: Math.random() * W,
+                y: Math.random() * H,
+                r: Math.random() * 1.8 + 0.2,
+                twinkleSpeed: Math.random() * 0.03 + 0.01,
+                twinkleOffset: Math.random() * Math.PI * 2,
+                color: palette[Math.floor(Math.random() * 3)] // blue/purple/pink
+            });
+        }
+    }
+
+    function drawStars() {
+        for (let s of stars) {
+            const flicker = 0.4 + 0.6 * Math.sin(time * s.twinkleSpeed + s.twinkleOffset);
+            const alpha = flicker * (0.5 + s.r / 2);
+
+            // Star core
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${s.color[0]},${s.color[1]},${s.color[2]},${alpha})`;
+            ctx.fill();
+
+            // Star glow
+            if (s.r > 1) {
+                const grad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 4);
+                grad.addColorStop(0, `rgba(${s.color[0]},${s.color[1]},${s.color[2]},${alpha * 0.4})`);
+                grad.addColorStop(1, 'transparent');
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r * 4, 0, Math.PI * 2);
+                ctx.fillStyle = grad;
+                ctx.fill();
+            }
+        }
+    }
+
+    // ── SHOOTING STARS ──
+    function spawnShootingStar() {
+        if (shootingStars.length > 3) return;
+        const col = palette[Math.floor(Math.random() * palette.length)];
+        shootingStars.push({
+            x: Math.random() * W * 0.8,
+            y: Math.random() * H * 0.3,
+            len: Math.random() * 120 + 80,
+            speed: Math.random() * 8 + 6,
+            angle: Math.PI / 4 + (Math.random() - 0.5) * 0.3,
+            life: 1,
+            decay: Math.random() * 0.012 + 0.008,
+            color: col,
+            width: Math.random() * 2 + 1
+        });
+    }
+
+    function updateAndDrawShootingStars() {
+        for (let i = shootingStars.length - 1; i >= 0; i--) {
+            const s = shootingStars[i];
+            s.x += Math.cos(s.angle) * s.speed;
+            s.y += Math.sin(s.angle) * s.speed;
+            s.life -= s.decay;
+
+            if (s.life <= 0) { shootingStars.splice(i, 1); continue; }
+
+            const tailX = s.x - Math.cos(s.angle) * s.len;
+            const tailY = s.y - Math.sin(s.angle) * s.len;
+
+            const grad = ctx.createLinearGradient(tailX, tailY, s.x, s.y);
+            grad.addColorStop(0, 'transparent');
+            grad.addColorStop(0.6, `rgba(${s.color[0]},${s.color[1]},${s.color[2]},${s.life * 0.5})`);
+            grad.addColorStop(1, `rgba(255,255,255,${s.life})`);
+
+            ctx.beginPath();
+            ctx.moveTo(tailX, tailY);
+            ctx.lineTo(s.x, s.y);
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = s.width;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            // Head glow
+            const headGrad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 8);
+            headGrad.addColorStop(0, `rgba(255,255,255,${s.life})`);
+            headGrad.addColorStop(1, 'transparent');
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, 8, 0, Math.PI * 2);
+            ctx.fillStyle = headGrad;
+            ctx.fill();
+        }
+    }
+
+    // ── AURORA BOREALIS ──
+    function drawAurora() {
+        for (let b = 0; b < AURORA_BANDS; b++) {
+            const baseY = H * (0.15 + b * 0.12);
+            const col = palette[b % palette.length];
+
+            ctx.beginPath();
+            ctx.moveTo(0, baseY);
+
+            for (let x = 0; x <= W; x += 4) {
+                const wave1 = Math.sin((x * 0.003) + time * 0.008 + b * 1.5) * 50;
+                const wave2 = Math.sin((x * 0.007) + time * 0.012 + b * 0.8) * 30;
+                const wave3 = Math.sin((x * 0.001) + time * 0.005) * 70;
+                const y = baseY + wave1 + wave2 + wave3;
+                ctx.lineTo(x, y);
+            }
+
+            ctx.lineTo(W, H);
+            ctx.lineTo(0, H);
+            ctx.closePath();
+
+            const grad = ctx.createLinearGradient(0, baseY - 80, 0, baseY + 200);
+            grad.addColorStop(0, 'transparent');
+            grad.addColorStop(0.2, `rgba(${col[0]},${col[1]},${col[2]},${0.04 + Math.sin(time * 0.01 + b) * 0.02})`);
+            grad.addColorStop(0.5, `rgba(${col[0]},${col[1]},${col[2]},${0.02})`);
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.fill();
+        }
+    }
+
+    // ── FLOATING NEON ORBS ──
+    function initOrbs() {
+        orbs = [];
+        for (let i = 0; i < ORB_COUNT; i++) {
+            const col = palette[Math.floor(Math.random() * palette.length)];
+            orbs.push({
+                x: Math.random() * W,
+                y: Math.random() * H,
+                baseR: Math.random() * 30 + 15,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: (Math.random() - 0.5) * 0.5,
+                color: col,
+                phase: Math.random() * Math.PI * 2,
+                pulseSpeed: Math.random() * 0.02 + 0.01
+            });
+        }
+    }
+
+    function updateAndDrawOrbs() {
+        for (let o of orbs) {
+            // Drift
+            o.x += o.vx;
+            o.y += o.vy;
+            if (o.x < -50) o.x = W + 50;
+            if (o.x > W + 50) o.x = -50;
+            if (o.y < -50) o.y = H + 50;
+            if (o.y > H + 50) o.y = -50;
+
+            // Mouse attraction
+            if (mouse.active) {
+                const dx = mouse.x - o.x, dy = mouse.y - o.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 300 && dist > 0) {
+                    const pull = 0.3 / dist;
+                    o.vx += dx * pull;
+                    o.vy += dy * pull;
+                }
+            }
+
+            // Dampen
+            o.vx *= 0.99; o.vy *= 0.99;
+
+            const pulse = Math.sin(time * o.pulseSpeed + o.phase);
+            const r = o.baseR + pulse * 8;
+
+            // Outer glow
+            const grad = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, r * 3);
+            grad.addColorStop(0, `rgba(${o.color[0]},${o.color[1]},${o.color[2]},0.15)`);
+            grad.addColorStop(0.4, `rgba(${o.color[0]},${o.color[1]},${o.color[2]},0.05)`);
+            grad.addColorStop(1, 'transparent');
+            ctx.beginPath();
+            ctx.arc(o.x, o.y, r * 3, 0, Math.PI * 2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            // Inner core
+            const coreGrad = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, r);
+            coreGrad.addColorStop(0, `rgba(255,255,255,0.2)`);
+            coreGrad.addColorStop(0.3, `rgba(${o.color[0]},${o.color[1]},${o.color[2]},0.12)`);
+            coreGrad.addColorStop(1, 'transparent');
+            ctx.beginPath();
+            ctx.arc(o.x, o.y, r, 0, Math.PI * 2);
+            ctx.fillStyle = coreGrad;
+            ctx.fill();
+        }
+    }
+
+    // ── MOUSE VORTEX ──
+    function drawVortex() {
+        if (!mouse.active) return;
+
+        // Spinning rings
+        for (let ring = 0; ring < 3; ring++) {
+            const radius = 40 + ring * 30;
+            const alpha = 0.08 - ring * 0.02;
+            const col = palette[ring];
+            const rotation = time * 0.02 * (ring % 2 === 0 ? 1 : -1);
+
+            ctx.beginPath();
+            ctx.arc(mouse.x, mouse.y, radius, rotation, rotation + Math.PI * 1.4);
+            ctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${alpha})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // Central glow
+        const grad = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 120);
+        grad.addColorStop(0, 'rgba(139,92,246,0.08)');
+        grad.addColorStop(0.5, 'rgba(96,165,250,0.03)');
+        grad.addColorStop(1, 'transparent');
+        ctx.beginPath();
+        ctx.arc(mouse.x, mouse.y, 120, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+    }
+
+    // ── CLICK RIPPLES ──
+    function spawnRipple(x, y) {
+        const col = palette[Math.floor(Math.random() * palette.length)];
+        for (let i = 0; i < 3; i++) {
+            ripples.push({
+                x, y,
+                r: 5 + i * 15,
+                maxR: 150 + i * 60,
+                speed: 3 + i * 1.5,
+                life: 1,
+                decay: 0.015 - i * 0.003,
+                color: col,
+                width: 2 - i * 0.5
+            });
+        }
+    }
+
+    function updateAndDrawRipples() {
+        for (let i = ripples.length - 1; i >= 0; i--) {
+            const rp = ripples[i];
+            rp.r += rp.speed;
+            rp.life -= rp.decay;
+            if (rp.life <= 0 || rp.r > rp.maxR) { ripples.splice(i, 1); continue; }
+
+            ctx.beginPath();
+            ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(${rp.color[0]},${rp.color[1]},${rp.color[2]},${rp.life * 0.5})`;
+            ctx.lineWidth = rp.width;
+            ctx.stroke();
+        }
+    }
+
+    // ── NEBULA FOG ──
+    function drawNebula() {
+        const spots = [
+            { x: W * 0.2, y: H * 0.3, r: 300, col: palette[1] },
+            { x: W * 0.8, y: H * 0.7, r: 350, col: palette[0] },
+            { x: W * 0.5, y: H * 0.5, r: 400, col: palette[5] },
+        ];
+        for (let s of spots) {
+            const drift = Math.sin(time * 0.003 + s.x * 0.01) * 30;
+            const grad = ctx.createRadialGradient(s.x + drift, s.y, 0, s.x + drift, s.y, s.r);
+            grad.addColorStop(0, `rgba(${s.col[0]},${s.col[1]},${s.col[2]},0.03)`);
+            grad.addColorStop(0.5, `rgba(${s.col[0]},${s.col[1]},${s.col[2]},0.01)`);
+            grad.addColorStop(1, 'transparent');
+            ctx.beginPath();
+            ctx.arc(s.x + drift, s.y, s.r, 0, Math.PI * 2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+        }
+    }
+
+    // ── MAIN LOOP ──
+    function animate() {
+        time++;
+        ctx.clearRect(0, 0, W, H);
+
+        // Background gradient (deep space)
+        const bgGrad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.8);
+        bgGrad.addColorStop(0, '#0a0a2e');
+        bgGrad.addColorStop(0.5, '#050520');
+        bgGrad.addColorStop(1, '#020014');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, W, H);
+
+        // Draw layers back to front
+        drawNebula();
+        drawAurora();
+        drawStars();
+        updateAndDrawOrbs();
+        updateAndDrawShootingStars();
+        drawVortex();
+        updateAndDrawRipples();
+
+        // Random shooting stars
+        if (Math.random() < 0.008) spawnShootingStar();
+
+        requestAnimationFrame(animate);
+    }
+
+    // ── EVENTS ──
+    window.addEventListener('resize', resize);
+
+    canvas.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+        mouse.active = true;
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        mouse.active = false;
+    });
+
+    canvas.addEventListener('click', (e) => {
+        spawnRipple(e.clientX, e.clientY);
+        // Burst of shooting stars on click!
+        for (let i = 0; i < 2; i++) spawnShootingStar();
+    });
+
+    resize();
+    animate();
 }
 
 const USER_PROFILE_STORAGE_KEY = 'rk_user_profile';
@@ -294,13 +632,23 @@ function renderSampleText(text) {
     charElements = [];
     currentSampleText = text.toLowerCase();
     
-    for (let i = 0; i < text.length; i++) {
-        const char = text[i];
-        const span = document.createElement('span');
-        span.className = 'char' + (char === ' ' ? ' space' : '');
-        span.textContent = char === ' ' ? '\u00A0' : char;
-        charElements.push(span);
-        wordsContainer.appendChild(span);
+    // Split text into words (keeping spaces attached to end of each word)
+    const words = text.split(/(?<= )/);
+    
+    for (const word of words) {
+        const wordSpan = document.createElement('span');
+        wordSpan.className = 'word';
+        
+        for (let i = 0; i < word.length; i++) {
+            const char = word[i];
+            const span = document.createElement('span');
+            span.className = 'char' + (char === ' ' ? ' space' : '');
+            span.textContent = char === ' ' ? '\u00A0' : char;
+            charElements.push(span);
+            wordSpan.appendChild(span);
+        }
+        
+        wordsContainer.appendChild(wordSpan);
     }
     
     // Set first character as current
@@ -844,7 +1192,7 @@ const initRandom = getRandomText();
 renderSampleText(initRandom.text);
 if (sampleCodeElement) sampleCodeElement.textContent = initRandom.code;
 initializeUserProfile();
-createSnowfall();
+initParticleBackground();
 
 // Check if we need to show Level 2 locked modal (redirected from level2.html)
 if (sessionStorage.getItem('showLevel2LockedModal') === 'true') {
